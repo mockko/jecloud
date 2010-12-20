@@ -15,8 +15,12 @@ Jeweler::Tasks.new do |gem|
   gem.name = "jecloud"
   gem.homepage = "http://github.com/andreyvit/jecloud"
   gem.license = "MIT"
-  gem.summary = %Q{TODO: one-line summary of your gem}
-  gem.description = %Q{TODO: longer description of your gem}
+  gem.summary = %Q{JeCloud: open-source cloud stack for node.js}
+  gem.description = %Q{
+    JeCloud aims to provide an all-inclusive open-source cloud stack, similar to Google App Engine, Heroku
+    etc. Initially, JeCloud only supports EC2, though more cloud providers (Rackspace Cloud, Linode) will be
+    supported in the future (contributors welcome).
+  }
   gem.email = "andreyvit@gmail.com"
   gem.authors = ["Andrey Tarantsov"]
   # Include your dependencies below. Runtime dependencies are required when using your gem,
