@@ -54,9 +54,9 @@ At this stage, there is no separate cloud monitoring solution, and there is no c
 Server side
 -----------
 
-Except for the code of JaCloud (which is a gem), all other JaCloud-related stuff on the server is stored under `/var/cloud`.
+Except for the code of JeCloud (which is a gem), all other JeCloud-related stuff on the server is stored under `/var/cloud`.
 
-There is a global state file `/var/cloud/sys/server.json` and per-application state files `/var/cloud/APP/ENV/app.json`. The intent is to store only the bare minimum of the state that cannot be figured otherwise, and to accommodate external changes as much as possible (i.e. if you go and mess with the server, JaCloud should pick things up from where you left off).
+There is a global state file `/var/cloud/sys/server.json` and per-application state files `/var/cloud/APP/ENV/app.json`. The intent is to store only the bare minimum of the state that cannot be figured otherwise, and to accommodate external changes as much as possible (i.e. if you go and mess with the server, JeCloud should pick things up from where you left off).
 
 We use roll-forward semantics for the recorded server state. E.g., to deploy a new version, we first record that we are deploying a version with the given ID, then run a general rollforward script that handles the actual process. If a server crashes during the operation, it will be completed the next time rollforward is run (on next boot or from cron).
 
@@ -109,9 +109,9 @@ Once a server is created and SSH connection succeeds, we install the required so
 Service hooks
 -------------
 
-The core of JaCloud knows nothing about the specific services like Node.js or MongoDB. Some common concepts are supported in the core (shards, replicas).
+The core of JeCloud knows nothing about the specific services like Node.js or MongoDB. Some common concepts are supported in the core (shards, replicas).
 
-Service hooks should be very easy to write, so that everyone can throw a quick class together and get his favorite service running with JaCloud.
+Service hooks should be very easy to write, so that everyone can throw a quick class together and get his favorite service running with JeCloud.
 
 
 Server state file
