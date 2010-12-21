@@ -3,6 +3,14 @@ source "http://rubygems.org"
 # Example:
 #   gem "activesupport", ">= 2.3.5"
 
+gem "amazon-ec2"
+gem "aws-s3"
+gem "hashie"
+gem "andand"
+gem "net-ssh"
+gem "net-sftp"
+gem "commander"
+
 # Add dependencies to develop your gem here.
 # Include everything needed to run rake, tests, features, etc.
 group :development do

@@ -1,0 +1,47 @@
+#!/usr/bin/env ruby
+require 'commander/import'  # commander gem
+
+$LOAD_PATH.unshift File.join(File.dirname(__FILE__), '..', 'lib')
+require 'jecloud'
+
+program :name, 'JeCloud'
+program :version, JeCloud::VERSION
+program :description, 'Open cloud stack manager'
+
+cli = JeCloud::CLI.new
+
+command :'print-version' do |c|
+  c.description = 'Print the version of JeCloud in a machine-readable format'
+  c.action do |args, options|
+    puts JeCloud::VERSION
+  end
+end
+
+command :status do |c|
+  c.description = 'Check the status of the cloud'
+  c.action do |args, options|
+    cli.status!
+  end
+end
+
+command :fwd do |c|
+  c.description = 'Roll forward any pending changes'
+  c.action do |args, options|
+    cli.roll_forward!
+  end
+end
+
+command :deploy do |c|
+  c.description = 'Deploy a new version of the app to the cloud'
+  c.action do |args, options|
+    cli.deploy! args
+  end
+end
+
+command :terminate do |c|
+  c.description = 'Terminate all the servers of your cloud'
+  c.action do |args, options|
+    exit 1 unless agree("Are you sure you want to PERMANENTLY destroy all running servers?")
+    cli.terminate!
+  end
+end

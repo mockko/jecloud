@@ -1,0 +1,3 @@
+app_name: "example"
+ec2_instance_type: t1.micro
+ec2_ami: ami-08728661  # Basic 32-bit Amazon Linux AMI 1.0

@@ -1,7 +1,7 @@
 JeCloud
 =======
 
-**Early stage project, beware! — there's only this README at the moment**
+**Early stage project, beware! — see ‘Roadmap & status of 0.1’ below**
 
 It's mingboggingly retarded that every startup owner has to build his own cloud stack from scratch, unless he is satisfied with existing hosted solutions like Heroku.
 
@@ -39,16 +39,32 @@ Roadmap for 1.2
 * predictable updates (if I tested with node 2.1, I don't want to get 2.2 automatically)
 
 
-Roadmap for 0.1 (i.e. what I'm working on right now)
-----------------------------------------------------
+Roadmap & status of 0.1 (i.e. what I'm working on right now)
+------------------------------------------------------------
+
+Goal:
 
 * single app, single environment, single server
 * `jecloud` command-line tool with subcommands
 * `jecloud status` (default subcommand) gives a status of the server (not running, booting, idle, setup running)
-* `jecloud update` update the server with the latest configuration changes (plus, as needed: create the server, install required packages)
 * `jecloud deploy` deploy the source code to the server (currently not a commit hook — most likely just upload a .tar.bz2)
+* no separate cloud monitoring solution
+* maximum possible test coverage (without involving AWS in testing)
 
-At this stage, there is no separate cloud monitoring solution, and there is no central cloud state storage.
+Done:
+
+* creation of a new EC2 instance
+* JeCloud gem installation on the created instance
+* naïve roll-forward implementation
+* cloud state is stored on S3: for an app named ‘example’ (see app_name in cloud.yml), configuration is stored in `jecloud-example` bucket of S3
+
+How to run:
+
+* copy `example/keys.yml.example` into `example/keys.yml` and insert your AWS access keys
+* make sure you are signed up for both EC2 and S3 (go to http://aws.amazon.com/ and click ‘Sign in to the AWS Management Console’)
+* run `bundle install` to install all prerequisite gems
+* cd into `example`
+* run `ruby -rubygems ../bin/jecloud deploy -t` — you should see a new instance created and set up (yum packages installed, then gems installed)
 
 
 Server side
