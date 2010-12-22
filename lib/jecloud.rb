@@ -2,6 +2,7 @@
 require 'yaml'
 require 'fileutils'
 require 'logger'
+require 'forwardable'
 
 require 'AWS'               # amazon-ec2
 require 'aws/s3'            # aws-s3
@@ -12,6 +13,7 @@ require 'hashie'            # hashie gem
 require 'jecloud/application'
 require 'jecloud/cli'
 require 'jecloud/session'
+require 'jecloud/server_session'
 
 module JeCloud
   VERSION = File.read(File.join(File.dirname(__FILE__), '..', 'VERSION'))

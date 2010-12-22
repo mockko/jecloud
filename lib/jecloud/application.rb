@@ -10,6 +10,7 @@ class Application
   end
 
   attr_reader :app_name
+  attr_reader :ec2_ssh_key_file
 
   def initialize config_dir
     @config_dir = config_dir
@@ -127,6 +128,7 @@ class Application
   def roll_forward_step! session
     $log.debug "Roll forward running"
     @config.servers.each do |server|
+      server_session = ServerSession.new(self, server)
       catch :failed do
         session.action "#{server.uuid}-initial-setup", :unless => server.instance_id? do
           instance_type = @cloud_config.ec2_instance_type
@@ -158,86 +160,67 @@ class Application
         end
 
         jecloud_installed = false
-        $log.debug "Connecting via SSH to ec2-user@#{server.public_ip}"
         session.action "#{server.uuid}-ssh" do
-          Net::SSH.start(server.public_ip, 'ec2-user', :keys => [@ec2_ssh_key_file]) do |ssh|
-            $log.debug "SSH connected ok!"
-
-            # ch.request_pty do |ch, success|
-            #   raise "could not start a pseudo-tty" unless success
-            #
-            #   # full EC2 environment
-            #   ###ch.env 'key', 'value'
-            #   ###...
-            #
-            #   ch.exec 'sudo echo Hello 1337' do |ch, success|
-            #     raise "could not exec against a pseudo-tty" unless success
-            #   end
-            # end
-
-            session.action "#{server.uuid}-sudo-test" do
-              x = ssh.sudo!("echo ok").strip
-              if x == 'ok'
-                $log.debug "sudo test ok"
-              else
-                raise UnexpectedExternalProblem, "sudo does not work on #{server.public_ip}"
-              end
+          session.action "#{server.uuid}-sudo-test" do
+            x = server_session.sudo!("echo ok").strip
+            if x == 'ok'
+              $log.debug "sudo test ok"
+            else
+              raise UnexpectedExternalProblem, "sudo does not work on #{server.public_ip}"
             end
+          end
 
-            jecloud_version = ssh.exec!("jecloud print-version || echo 'NONE'").strip
-            $log.debug "JeCloud version on the server: #{jecloud_version}"
-            if jecloud_version =~ /^\d+\.\d+(?:\.\d+(?:\.\d+)?)?$/
-              if jecloud_version.pad_numbers >= JeCloud::VERSION.pad_numbers
-                $log.debug "JeCloud installed on the server is good enough."
-                jecloud_installed = true
-              end
+          jecloud_version = server_session.exec!("jecloud print-version || echo 'NONE'").strip
+          $log.debug "JeCloud version on the server: #{jecloud_version}"
+          if jecloud_version =~ /^\d+\.\d+(?:\.\d+(?:\.\d+)?)?$/
+            if jecloud_version.pad_numbers >= JeCloud::VERSION.pad_numbers
+              $log.debug "JeCloud installed on the server is good enough."
+              jecloud_installed = true
             end
+          end
 
-            session.action "#{server.uuid}-install-jecloud", :unless => jecloud_installed do
-              yum_packages = %w/gcc gcc-c++ openssl openssl-devel ruby-devel rubygems git/
+          session.action "#{server.uuid}-install-jecloud", :unless => jecloud_installed do
+            yum_packages = %w/gcc gcc-c++ openssl openssl-devel ruby-devel rubygems git/
 
-              $log.debug "Installing yum packages: #{yum_packages.join(' ')}"
-              ssh.sudo_print!("yum install -y #{yum_packages.join(' ')}")
-              $log.info "Installed yum packages: #{yum_packages.join(' ')}"
+            $log.debug "Installing yum packages: #{yum_packages.join(' ')}"
+            server_session.sudo_print!("yum install -y #{yum_packages.join(' ')}")
+            $log.info "Installed yum packages: #{yum_packages.join(' ')}"
 
-              sftp = Net::SFTP::Session.new(ssh)
-              sftp.loop { sftp.opening? }
+            $log.debug "Rebuilding JeCloud locally"
+            puts `rake build`
+            raise UnexpectedExternalProblem, "JeCloud build failed" unless $?.success?
 
-              $log.debug "Rebuilding JeCloud locally"
-              puts `rake build`
-              raise UnexpectedExternalProblem, "JeCloud build failed" unless $?.success?
-
-              remote_path = "/tmp/#{File.basename(GEM_FILE)}"
-              $log.debug "Uploading JeCloud gem into #{server.public_ip}:#{remote_path}"
-              sftp.file.open(remote_path, 'w') do |of|
-                of.write(File.read(GEM_FILE))
-              end
-              sftp.loop
-
-              $log.debug "Uninstalling old JeCloud version if any"
-              ssh.sudo_print!("gem uninstall --executables jecloud")
-
-              $log.debug "Installing JeCloud gem"
-              ssh.sudo_print!("gem install --no-rdoc --no-ri #{remote_path}")
-
-              jecloud_version = ssh.exec!("jecloud print-version || echo 'NONE'").strip
-              if jecloud_version == JeCloud::VERSION
-                $log.info "Installed JeCloud on #{server.public_ip}"
-              else
-                puts jecloud_version
-                raise UnexpectedExternalProblem, "Installation of JeCloud failed on #{server.public_ip}"
-              end
+            remote_path = "/tmp/#{File.basename(GEM_FILE)}"
+            $log.debug "Uploading JeCloud gem into #{server.public_ip}:#{remote_path}"
+            server_session.sftp.file.open(remote_path, 'w') do |of|
+              of.write(File.read(GEM_FILE))
             end
+            server_session.sftp.loop
 
-            # deployment requested?
-            if server.deployment?
-              # pretend that it succeeded
-              server.deployment = nil
-              return true
+            $log.debug "Uninstalling old JeCloud version if any"
+            server_session.sudo_print!("gem uninstall --executables jecloud")
+
+            $log.debug "Installing JeCloud gem"
+            server_session.sudo_print!("gem install --no-rdoc --no-ri #{remote_path}")
+
+            jecloud_version = server_session.exec!("jecloud print-version || echo 'NONE'").strip
+            if jecloud_version == JeCloud::VERSION
+              $log.info "Installed JeCloud on #{server.public_ip}"
+            else
+              puts jecloud_version
+              raise UnexpectedExternalProblem, "Installation of JeCloud failed on #{server.public_ip}"
             end
+          end
+
+          # deployment requested?
+          if server.deployment?
+            # pretend that it succeeded
+            server.deployment = nil
+            return true
           end
         end
       end
+      server_session.close!
     end
     return false
   end
