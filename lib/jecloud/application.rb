@@ -107,9 +107,10 @@ class Application
       next_attempt = nil
       while cont
         update_config do
-          session = Session.new(@config.failures)
-          cont = roll_forward_step! session
-          next_attempt = session.next_attempt
+          Session.new(@config.failures).tap do |session|
+            roll_forward_step! session
+            next_attempt, cont = session.next_attempt, session.any_actions_executed?
+          end
         end
       end
       if next_attempt
@@ -159,70 +160,62 @@ class Application
           raise ExpectedDelay, "No IP address assigned yet"
         end
 
-        jecloud_installed = false
-        session.action "#{server.uuid}-ssh" do
-          session.action "#{server.uuid}-sudo-test" do
-            x = server_session.sudo!("echo ok").strip
-            if x == 'ok'
-              $log.debug "sudo test ok"
-            else
-              raise UnexpectedExternalProblem, "sudo does not work on #{server.public_ip}"
-            end
+        session.check "#{server.uuid}-sudo-test" do
+          x = server_session.sudo!("echo ok").strip
+          if x == 'ok'
+            $log.debug "sudo test ok"
+          else
+            raise UnexpectedExternalProblem, "sudo does not work on #{server.public_ip}"
           end
+        end
+
+        jecloud_installed = session.check("#{server.uuid}-is-jecloud-up-to-date") do
+          jecloud_version = server_session.exec!("jecloud print-version || echo 'NONE'").strip
+          (jecloud_version =~ /^\d+\.\d+(?:\.\d+(?:\.\d+)?)?$/ && jecloud_version.pad_numbers >= JeCloud::VERSION.pad_numbers).tap do |is_good_enough|
+            $log.debug "JeCloud version on the server: #{jecloud_version} (#{is_good_enough ? 'Good to go!' : 'Need to (re)install JeCloud.'})"
+          end
+        end
+
+        session.action "#{server.uuid}-install-jecloud", :unless => jecloud_installed do
+          yum_packages = %w/gcc gcc-c++ openssl openssl-devel ruby-devel rubygems git/
+
+          $log.debug "Installing yum packages: #{yum_packages.join(' ')}"
+          server_session.sudo_print!("yum install -y #{yum_packages.join(' ')}")
+          $log.info "Installed yum packages: #{yum_packages.join(' ')}"
+
+          $log.debug "Rebuilding JeCloud locally"
+          puts `rake build`
+          raise UnexpectedExternalProblem, "JeCloud build failed" unless $?.success?
+
+          remote_path = "/tmp/#{File.basename(GEM_FILE)}"
+          $log.debug "Uploading JeCloud gem into #{server.public_ip}:#{remote_path}"
+          server_session.sftp.file.open(remote_path, 'w') do |of|
+            of.write(File.read(GEM_FILE))
+          end
+          server_session.sftp.loop
+
+          $log.debug "Uninstalling old JeCloud version if any"
+          server_session.sudo_print!("gem uninstall --executables jecloud")
+
+          $log.debug "Installing JeCloud gem"
+          server_session.sudo_print!("gem install --no-rdoc --no-ri #{remote_path}")
 
           jecloud_version = server_session.exec!("jecloud print-version || echo 'NONE'").strip
-          $log.debug "JeCloud version on the server: #{jecloud_version}"
-          if jecloud_version =~ /^\d+\.\d+(?:\.\d+(?:\.\d+)?)?$/
-            if jecloud_version.pad_numbers >= JeCloud::VERSION.pad_numbers
-              $log.debug "JeCloud installed on the server is good enough."
-              jecloud_installed = true
-            end
+          if jecloud_version == JeCloud::VERSION
+            $log.info "Installed JeCloud on #{server.public_ip}"
+          else
+            puts jecloud_version
+            raise UnexpectedExternalProblem, "Installation of JeCloud failed on #{server.public_ip}"
           end
+        end
 
-          session.action "#{server.uuid}-install-jecloud", :unless => jecloud_installed do
-            yum_packages = %w/gcc gcc-c++ openssl openssl-devel ruby-devel rubygems git/
-
-            $log.debug "Installing yum packages: #{yum_packages.join(' ')}"
-            server_session.sudo_print!("yum install -y #{yum_packages.join(' ')}")
-            $log.info "Installed yum packages: #{yum_packages.join(' ')}"
-
-            $log.debug "Rebuilding JeCloud locally"
-            puts `rake build`
-            raise UnexpectedExternalProblem, "JeCloud build failed" unless $?.success?
-
-            remote_path = "/tmp/#{File.basename(GEM_FILE)}"
-            $log.debug "Uploading JeCloud gem into #{server.public_ip}:#{remote_path}"
-            server_session.sftp.file.open(remote_path, 'w') do |of|
-              of.write(File.read(GEM_FILE))
-            end
-            server_session.sftp.loop
-
-            $log.debug "Uninstalling old JeCloud version if any"
-            server_session.sudo_print!("gem uninstall --executables jecloud")
-
-            $log.debug "Installing JeCloud gem"
-            server_session.sudo_print!("gem install --no-rdoc --no-ri #{remote_path}")
-
-            jecloud_version = server_session.exec!("jecloud print-version || echo 'NONE'").strip
-            if jecloud_version == JeCloud::VERSION
-              $log.info "Installed JeCloud on #{server.public_ip}"
-            else
-              puts jecloud_version
-              raise UnexpectedExternalProblem, "Installation of JeCloud failed on #{server.public_ip}"
-            end
-          end
-
-          # deployment requested?
-          if server.deployment?
-            # pretend that it succeeded
-            server.deployment = nil
-            return true
-          end
+        session.action "#{server.uuid}-start-deployment", :if => server.deployment? do
+          # pretend that it succeeded
+          server.deployment = nil
         end
       end
       server_session.close!
     end
-    return false
   end
 
 private

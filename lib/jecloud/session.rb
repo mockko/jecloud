@@ -8,15 +8,39 @@ class Session
   def initialize failures
     @failures = failures
     @next_attempt = nil
+    @any_actions_executed = false
   end
 
-  def action name, options={}
+  def any_actions_executed?
+    @any_actions_executed
+  end
+
+  def action name, options={}, &block
+    raise "action must have :if or :unless condition specified" unless options.include?(:if) || options.include?(:unless)
+
+    options = { :if => true, :unless => false }.merge(options)
+    unless options.if && !options.unless
+      $log.debug "Not needed: #{name}"
+      return
+    end
+    run_action_or_check name, &block
+    @any_actions_executed = true  # got here, so action succeeded
+  end
+
+  # check results should be cached eventually, but for now run them every time
+  def check name, options={}, &block
     options = { :if => true, :unless => false }.merge(options)
     unless options.if && !options.unless
       $log.debug "Not needed: #{name}"
       return
     end
 
+    run_action_or_check name, &block
+  end
+
+private
+
+  def run_action_or_check name
     failure = @failures.delete(name) || Hashie::Mash.new
     now = Time.now.to_i
     next_attempt = failure.last && failure.last + failure.delay
@@ -28,7 +52,7 @@ class Session
     else
       $log.debug "Starting: #{name}"
       begin
-        yield
+        result = yield
         $log.info "Succeeded: #{name}"
       rescue Exception => e
         message = "#{e.class.name}: #{e.message}"
@@ -47,9 +71,8 @@ class Session
         throw :failed
       end
     end
+    return result
   end
-
-private
 
 end
 end
