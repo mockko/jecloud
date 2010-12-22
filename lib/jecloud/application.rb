@@ -1,6 +1,14 @@
 module JeCloud
 class Application
 
+  MAX_REPEAT_DELAY = 10
+
+  class ExpectedDelay < Exception
+  end
+
+  class UnexpectedExternalProblem < Exception
+  end
+
   attr_reader :app_name
 
   def initialize config_dir
@@ -89,134 +97,146 @@ class Application
     server = @config.servers.first || add_server!
     server.deployment = { 'version' => rev }
 
-    roll_forward
+    roll_forward!
   end
 
   def roll_forward!
-    loop do
-      update_config do
-        return unless roll_forward_step!
+    1.times do
+      cont = true
+      next_attempt = nil
+      while cont
+        update_config do
+          session = Session.new(@config.failures)
+          cont = roll_forward_step! session
+          next_attempt = session.next_attempt
+        end
+      end
+      if next_attempt
+        delay = [0, next_attempt - Time.now.to_i].max
+        if delay > MAX_REPEAT_DELAY
+          $log.info "Next attempt delay is #{delay} sec (which is > #{MAX_REPEAT_DELAY} sec limit), quitting"
+        else
+          $log.info "Sleeping for #{delay} sec"
+          sleep delay
+          retry
+        end
       end
     end
   end
 
-  def roll_forward_step!
+  def roll_forward_step! session
     $log.debug "Roll forward running"
     @config.servers.each do |server|
-      unless server.instance_id?
-        instance_type = @cloud_config.ec2_instance_type
-        die!("ec2_instance_type not specified") if instance_type.nil?
+      catch :failed do
+        session.action "#{server.uuid}-initial-setup", :unless => server.instance_id? do
+          instance_type = @cloud_config.ec2_instance_type
+          die!("ec2_instance_type not specified") if instance_type.nil?
 
-        ami = @cloud_config.ec2_ami
-        die!("ec2_ami not specified") if ami.nil?
+          ami = @cloud_config.ec2_ami
+          die!("ec2_ami not specified") if ami.nil?
 
-        make_key!
+          make_key!
 
-        $log.debug "Starting an instance of type #{instance_type} with AMI #{ami}"
-        r = @ec2.run_instances :image_id => ami, :key_name => @ec2_ssh_key_name, :instance_type => instance_type
-        puts r.to_yaml
-        instance_res = ((r.instancesSet || {}).item || [])[0]
+          $log.debug "Starting an instance of type #{instance_type} with AMI #{ami}"
+          r = @ec2.run_instances :image_id => ami, :key_name => @ec2_ssh_key_name, :instance_type => instance_type
+          puts r.to_yaml
+          instance_res = ((r.instancesSet || {}).item || [])[0]
 
-        server.instance_id = instance_res.instanceId
-        server.public_ip = instance_res.ipAddress
-        $log.info "Successfully started an instance with ID #{server.instance_id}"
-        return true
-      end
-      unless server.public_ip?
-        r = @ec2.describe_instances
-        puts r.to_yaml
-        instance = (r.reservationSet.item.collect { |i| i.instancesSet.item } || []).flatten.find { |i| i.instanceId == server.instance_id }
-        unless (instance.ipAddress || '').empty?
-          $log.info "Instance with ID #{server.instance_id} has been assigned IP #{server.public_ip}"
-          server.public_ip = instance.ipAddress
-          return true
+          server.instance_id = instance_res.instanceId
+          server.public_ip = instance_res.ipAddress
+          $log.info "Successfully started an instance with ID #{server.instance_id}"
         end
-        next
-      end
-
-      jecloud_installed = false
-      $log.debug "Connecting via SSH to ec2-user@#{server.public_ip}"
-      begin
-        Net::SSH.start(server.public_ip, 'ec2-user', :keys => [@ec2_ssh_key_file]) do |ssh|
-          $log.debug "SSH connected ok!"
-
-          # ch.request_pty do |ch, success|
-          #   raise "could not start a pseudo-tty" unless success
-          #
-          #   # full EC2 environment
-          #   ###ch.env 'key', 'value'
-          #   ###...
-          #
-          #   ch.exec 'sudo echo Hello 1337' do |ch, success|
-          #     raise "could not exec against a pseudo-tty" unless success
-          #   end
-          # end
-
-          x = ssh.sudo!("echo ok").strip
-          if x == 'ok'
-            $log.debug "sudo test ok"
-          else
-            $log.error "sudo does not work on #{server.public_ip}"
-            next
+        session.action "#{server.uuid}-obtain-ip", :unless => server.public_ip? do
+          r = @ec2.describe_instances
+          puts r.to_yaml
+          instance = (r.reservationSet.item.collect { |i| i.instancesSet.item } || []).flatten.find { |i| i.instanceId == server.instance_id }
+          unless (instance.ipAddress || '').empty?
+            $log.info "Instance with ID #{server.instance_id} has been assigned IP #{server.public_ip}"
+            server.public_ip = instance.ipAddress
           end
+          raise ExpectedDelay, "No IP address assigned yet"
+        end
 
-          jecloud_version = ssh.exec!("jecloud print-version || echo 'NONE'").strip
-          $log.debug "JeCloud version on the server: #{jecloud_version}"
-          if jecloud_version =~ /^\d+\.\d+(?:\.\d+(?:\.\d+)?)?$/
-            if jecloud_version.pad_numbers >= JeCloud::VERSION.pad_numbers
-              $log.debug "JeCloud installed on the server is good enough."
-              jecloud_installed = true
+        jecloud_installed = false
+        $log.debug "Connecting via SSH to ec2-user@#{server.public_ip}"
+        session.action "#{server.uuid}-ssh" do
+          Net::SSH.start(server.public_ip, 'ec2-user', :keys => [@ec2_ssh_key_file]) do |ssh|
+            $log.debug "SSH connected ok!"
+
+            # ch.request_pty do |ch, success|
+            #   raise "could not start a pseudo-tty" unless success
+            #
+            #   # full EC2 environment
+            #   ###ch.env 'key', 'value'
+            #   ###...
+            #
+            #   ch.exec 'sudo echo Hello 1337' do |ch, success|
+            #     raise "could not exec against a pseudo-tty" unless success
+            #   end
+            # end
+
+            session.action "#{server.uuid}-sudo-test" do
+              x = ssh.sudo!("echo ok").strip
+              if x == 'ok'
+                $log.debug "sudo test ok"
+              else
+                raise UnexpectedExternalProblem, "sudo does not work on #{server.public_ip}"
+              end
             end
-          end
-
-          unless jecloud_installed
-            yum_packages = %w/gcc gcc-c++ openssl openssl-devel ruby-devel rubygems git/
-
-            $log.debug "Installing yum packages: #{yum_packages.join(' ')}"
-            ssh.sudo_print!("yum install -y #{yum_packages.join(' ')}")
-            $log.info "Installed yum packages: #{yum_packages.join(' ')}"
-
-            sftp = Net::SFTP::Session.new(ssh)
-            sftp.loop { sftp.opening? }
-
-            $log.debug "Rebuilding JeCloud locally"
-            puts `rake build`
-
-            remote_path = "/tmp/#{File.basename(GEM_FILE)}"
-            $log.debug "Uploading JeCloud gem into #{server.public_ip}:#{remote_path}"
-            sftp.file.open(remote_path, 'w') do |of|
-              of.write(File.read(GEM_FILE))
-            end
-            sftp.loop
-
-            $log.debug "Uninstalling old JeCloud version if any"
-            ssh.sudo_print!("gem uninstall --executables jecloud")
-
-            $log.debug "Installing JeCloud gem"
-            ssh.sudo_print!("gem install --no-rdoc --no-ri #{remote_path}")
 
             jecloud_version = ssh.exec!("jecloud print-version || echo 'NONE'").strip
-            if jecloud_version == JeCloud::VERSION
-              $log.info "Installed JeCloud on #{server.public_ip}"
+            $log.debug "JeCloud version on the server: #{jecloud_version}"
+            if jecloud_version =~ /^\d+\.\d+(?:\.\d+(?:\.\d+)?)?$/
+              if jecloud_version.pad_numbers >= JeCloud::VERSION.pad_numbers
+                $log.debug "JeCloud installed on the server is good enough."
+                jecloud_installed = true
+              end
+            end
+
+            session.action "#{server.uuid}-install-jecloud", :unless => jecloud_installed do
+              yum_packages = %w/gcc gcc-c++ openssl openssl-devel ruby-devel rubygems git/
+
+              $log.debug "Installing yum packages: #{yum_packages.join(' ')}"
+              ssh.sudo_print!("yum install -y #{yum_packages.join(' ')}")
+              $log.info "Installed yum packages: #{yum_packages.join(' ')}"
+
+              sftp = Net::SFTP::Session.new(ssh)
+              sftp.loop { sftp.opening? }
+
+              $log.debug "Rebuilding JeCloud locally"
+              puts `rake build`
+              raise UnexpectedExternalProblem, "JeCloud build failed" unless $?.success?
+
+              remote_path = "/tmp/#{File.basename(GEM_FILE)}"
+              $log.debug "Uploading JeCloud gem into #{server.public_ip}:#{remote_path}"
+              sftp.file.open(remote_path, 'w') do |of|
+                of.write(File.read(GEM_FILE))
+              end
+              sftp.loop
+
+              $log.debug "Uninstalling old JeCloud version if any"
+              ssh.sudo_print!("gem uninstall --executables jecloud")
+
+              $log.debug "Installing JeCloud gem"
+              ssh.sudo_print!("gem install --no-rdoc --no-ri #{remote_path}")
+
+              jecloud_version = ssh.exec!("jecloud print-version || echo 'NONE'").strip
+              if jecloud_version == JeCloud::VERSION
+                $log.info "Installed JeCloud on #{server.public_ip}"
+              else
+                puts jecloud_version
+                raise UnexpectedExternalProblem, "Installation of JeCloud failed on #{server.public_ip}"
+              end
+            end
+
+            # deployment requested?
+            if server.deployment?
+              # pretend that it succeeded
+              server.deployment = nil
               return true
-            else
-              puts jecloud_version
-              $log.error "Installation of JeCloud failed on #{server.public_ip}"
-              # TODO: back off next time
-              next
             end
           end
-
-          # deployment requested?
-          if server.deployment?
-            # pretend that it succeeded
-            server.deployment = nil
-            return true
-          end
         end
-      rescue Errno::ECONNREFUSED => e
-        puts "Server not ready yet."
-        next
       end
     end
     return false
@@ -233,17 +253,23 @@ private
   end
 
   def read_config
-    Hashie::Mash.new(YAML.load(AWS::S3::S3Object.value('state.json', @config_bucket_name)))
-  rescue AWS::S3::NoSuchKey
-    Hashie::Mash.new.tap do |config|
-      config.servers = []
+    begin
+      Hashie::Mash.new(YAML.load(AWS::S3::S3Object.value('state.json', @config_bucket_name)))
+    rescue AWS::S3::NoSuchKey
+      Hashie::Mash.new
+    end.tap do |config|
+      config.servers ||= []
+      config.servers.each do |server|
+        server.uuid ||= `uuidgen`.strip
+      end
+      config.failures!
     end
   end
 
   def update_config
-    @config = read_config
     result = yield
     AWS::S3::S3Object.store 'state.json', YAML.dump(@config.to_hash), @config_bucket_name
+    puts @config.to_hash.to_yaml
     return result
   end
 

@@ -11,6 +11,7 @@ require 'hashie'            # hashie gem
 
 require 'jecloud/application'
 require 'jecloud/cli'
+require 'jecloud/session'
 
 module JeCloud
   VERSION = File.read(File.join(File.dirname(__FILE__), '..', 'VERSION'))
