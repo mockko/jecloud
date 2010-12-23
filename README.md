@@ -15,6 +15,43 @@ supported in the future as time permits (contributions welcome).
 My goal is to build something really simple that works for me — I need to get back to my startup soon, after all.
 
 
+Running JeCloud
+---------------
+
+The following scenario should already works for you.
+
+* copy `example/keys.yml.example` into `example/keys.yml` and insert your AWS access keys
+* make sure you are signed up for both EC2 and S3 (go to http://aws.amazon.com/ and click ‘Sign in to the AWS Management Console’)
+* run `bundle install` to install all prerequisite gems
+* cd into `example`
+* run `ruby -rubygems ../bin/jecloud deploy -t` — you should see a new EC2 server instance created and set up (required yum packages installed, then JeCloud gem installed)
+
+Invoke `ruby -rubygems ../bin/jecloud --help` to see a list of all available commands.
+
+JeCloud already does:
+
+* create a new EC2 key pair (required for SSH access to the servers)
+* create and set up a EC2 server
+* install and update JeCloud gem on the server
+
+JeCloud does **NOT** yet:
+
+* upload your application source code to the server (this is be the next step)
+* set up or run actual node.js / mongodb / whatever
+
+
+JeCloud concepts 
+----------------
+
+* There is a global *cloud state* stored on Amazon S3. Currently it includes a list of servers in use (IP, EC2 instance ID for each server), a list of recently failed actions (for backing off) and the last deployment request.
+
+    The global state is currently stored in S3 bucket named after the application. I.e., for an application called “example” the bucket is called `jecloud-example`. (This is surely a problem, since S3 buckets namespace is shared among all users. Will be changed in the future.)
+
+* Any requests are recorded inside the state file, and then *roll-forward* is used to update the physical servers. Thus the real state of the servers eventually becomes consistent with the demanded state. (Roll-forward means that the changes specified in the state file are eventually applied, and if the initial processing has failed or crashed, it will be retried later.)
+
+
+
+
 Roadmap for 1.0
 ---------------
 
@@ -44,27 +81,36 @@ Roadmap & status of 0.1 (i.e. what I'm working on right now)
 
 Goal:
 
-* single app, single environment, single server
-* `jecloud` command-line tool with subcommands
-* `jecloud status` (default subcommand) gives a status of the server (not running, booting, idle, setup running)
-* `jecloud deploy` deploy the source code to the server (currently not a commit hook — most likely just upload a .tar.bz2)
-* no separate cloud monitoring solution
-* maximum possible test coverage (without involving AWS in testing)
+* deploy a single environment on a single server, running a ‘Hello, world’ node.js app
+* full server setup workflow from the very start
 
-Done:
 
-* creation of a new EC2 instance
-* JeCloud gem installation on the created instance
-* naïve roll-forward implementation
-* cloud state is stored on S3: for an app named ‘example’ (see app_name in cloud.yml), configuration is stored in `jecloud-example` bucket of S3
+Contributing to JeCloud
+-----------------------
+ 
+* Check out the latest master to make sure the feature hasn't been implemented or the bug hasn't been fixed yet
+* Check out the issue tracker to make sure someone already hasn't requested it and/or contributed it
+* Fork the project
+* Start a feature/bugfix branch
+* Commit and push until you are happy with your contribution
+* Make sure to add tests for it. This is important so I don't break it in a future version unintentionally.
+* Please try not to mess with the Rakefile, version, or history. If you want to have your own version, or is otherwise necessary, that is fine, but please isolate to its own commit so I can cherry-pick around it.
 
-How to run:
 
-* copy `example/keys.yml.example` into `example/keys.yml` and insert your AWS access keys
-* make sure you are signed up for both EC2 and S3 (go to http://aws.amazon.com/ and click ‘Sign in to the AWS Management Console’)
-* run `bundle install` to install all prerequisite gems
-* cd into `example`
-* run `ruby -rubygems ../bin/jecloud deploy -t` — you should see a new instance created and set up (yum packages installed, then gems installed)
+Copyright, License, Contributors
+--------------------------------
+
+Copyright (c) 2010 Andrey Tarantsov.
+
+Distributed under the terms of the MIT license (see LICENSE.txt for further details).
+
+A list of contributors, in the order of their first contribution:
+
+* Andrey Tarantsov ([github.com/andreyvit](https://github.com/andreyvit) | [@andreyvit](http://twitter.com/andreyvit/) | andreyvit@gmail.com)
+
+
+Thoughts about how JeCloud should work in the future
+====================================================
 
 
 Server side
@@ -163,23 +209,3 @@ Application state file
         }
       ]
     }
-
-
-Contributing to JeCloud
------------------------
- 
-* Check out the latest master to make sure the feature hasn't been implemented or the bug hasn't been fixed yet
-* Check out the issue tracker to make sure someone already hasn't requested it and/or contributed it
-* Fork the project
-* Start a feature/bugfix branch
-* Commit and push until you are happy with your contribution
-* Make sure to add tests for it. This is important so I don't break it in a future version unintentionally.
-* Please try not to mess with the Rakefile, version, or history. If you want to have your own version, or is otherwise necessary, that is fine, but please isolate to its own commit so I can cherry-pick around it.
-
-
-Copyright & License
--------------------
-
-Copyright (c) 2010 Andrey Tarantsov.
-
-Distributed under the terms of the MIT license (see LICENSE.txt for further details).
