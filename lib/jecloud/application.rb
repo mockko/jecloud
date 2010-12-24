@@ -53,8 +53,8 @@ class Application
     puts
     puts @config.to_hash.to_yaml
 
-    ans = @ec2.describe_instances
-    if ans.reservationSet
+    instances = describe_instances_flat
+    unless instances.empty?
       format = '%-10s  %-15s  %-10s %-12s  %-12s  '
       empty  = sprintf(format, "", "", "", "", "")
 
@@ -65,7 +65,7 @@ class Application
       puts '=' * empty.size
       puts sprintf(format, "Instance", "IP", "Type", "AMI", "State")
       puts '-' * empty.size
-      ans.reservationSet.item.collect { |i| i.instancesSet.item }.flatten.each do |server|
+      instances.each do |server|
         puts sprintf(format, server.instanceId, server.ipAddress, server.instanceType, server.imageId, server.instanceState.andand.name || 'unknown')
       end
       puts '=' * empty.size
@@ -117,9 +117,7 @@ class Application
   end
 
   def terminate!
-    instances = @ec2.describe_instances.reservationSet.item.collect { |i| i.instancesSet.item }.flatten
-
-    instances.each do |instance|
+    describe_instances_flat.each do |instance|
       ip, instance_id = instance['ipAddress'], instance['instanceId']
 
       $log.debug "Terminating instance #{instance_id} (#{ip})..."
@@ -196,7 +194,7 @@ class Application
         session.action "#{server.uuid}-obtain-ip", :unless => server.public_ip? do
           r = @ec2.describe_instances
           puts r.to_yaml
-          instance = (r.reservationSet.item.collect { |i| i.instancesSet.item } || []).flatten.find { |i| i.instanceId == server.instance_id }
+          instance = describe_instances_flat.find { |i| i.instanceId == server.instance_id }
           unless (instance.ipAddress || '').empty?
             $log.info "Instance with ID #{server.instance_id} has been assigned IP #{server.public_ip}"
             server.public_ip = instance.ipAddress
@@ -315,6 +313,17 @@ private
   def die! message
     $stderr.puts message
     exit 1
+  end
+
+private
+
+  def describe_instances_flat
+    ans = @ec2.describe_instances
+    if ans.reservationSet
+      ans.reservationSet.item.collect { |i| i.instancesSet.item }.flatten
+    else
+      []
+    end
   end
 
 end
