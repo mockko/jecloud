@@ -23,10 +23,11 @@ The following scenario should work for you:
 * copy `example/cloud-access.yml.example` into `example/cloud-access.yml` and insert your AWS access keys
 * make sure you are signed up for both EC2 and S3 (go to http://aws.amazon.com/ and click ‘Sign in to the AWS Management Console’)
 * run `bundle install` to install all prerequisite gems
+* run `rake install` to install the gem (or `rake link` to install stubs for development — `jecloud` stub will invoke `bin/jecloud` right from the development directory)
 * cd into `example`
-* run `ruby -rubygems ../bin/jecloud apply cloud.yml` — you should see a new EC2 server instance created and set up (required yum packages installed, then JeCloud gem installed)
+* run `jecloud apply cloud.yml` — you should see a new EC2 server instance created and set up (required yum packages installed, then JeCloud gem installed)
 
-Invoke `ruby -rubygems ../bin/jecloud --help` to see a list of all available commands.
+Invoke `jecloud --help` to see a list of all available commands.
 
 JeCloud already does:
 

@@ -55,3 +55,21 @@ Rake::RDocTask.new do |rdoc|
   rdoc.rdoc_files.include('README*')
   rdoc.rdoc_files.include('lib/**/*.rb')
 end
+
+desc "Write binaries to /usr/local/bin that invoke a development version"
+task :link do
+  Dir[File.join(File.expand_path(File.dirname(__FILE__)), "bin/*")].each do |binary|
+    target = File.join("/usr/local/bin", File.basename(binary))
+    puts "#{target} -> #{binary}"
+
+    stub = <<-EOS.gsub(/^ {6}/, '')
+      #! /usr/bin/env ruby
+      require 'rubygems'
+      load '#{binary}'
+    EOS
+
+    FileUtils.rm_rf target
+    File.open(target, 'w') { |f| f.write stub }
+    File.chmod(0755, target)
+  end
+end
