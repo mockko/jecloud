@@ -40,7 +40,7 @@ JeCloud does **NOT** yet:
 * set up or run actual node.js / mongodb / whatever
 
 
-JeCloud concepts 
+JeCloud concepts
 ----------------
 
 * There is a global *cloud state* stored on Amazon S3. Currently it includes a list of servers in use (IP, EC2 instance ID for each server), a list of recently failed actions (for backing off) and the last deployment request.
@@ -96,7 +96,7 @@ Goal:
 
 Contributing to JeCloud
 -----------------------
- 
+
 * Check out the latest master to make sure the feature hasn't been implemented or the bug hasn't been fixed yet
 * Check out the issue tracker to make sure someone already hasn't requested it and/or contributed it
 * Fork the project
