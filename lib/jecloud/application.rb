@@ -185,7 +185,7 @@ class Application
           make_key!
 
           $log.debug "Starting an instance of type #{instance_type} with AMI #{ami}"
-          r = @ec2.run_instances :image_id => ami, :key_name => @ec2_ssh_key_name, :instance_type => instance_type
+          r = @ec2.run_instances :image_id => ami, :key_name => @ec2_ssh_key_name, :instance_type => instance_type, :client_token => server.uuid
           puts r.to_yaml
           instance_res = ((r.instancesSet || {}).item || [])[0]
 
