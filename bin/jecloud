@@ -32,7 +32,9 @@ command :init do |c|
     cloud_content = <<-EOS.gsub(/^ {6}/, '')
       # JeCloud configuration file for #{app_name}
       ec2_instance_type: t1.micro
-      ec2_ami: ami-08728661  # Basic 32-bit Amazon Linux AMI 1.0
+      ec2_ami: ami-508c7839  # Ubuntu 10.10 Maverick EBS boot
+      server_user_name: ubuntu
+      package_manager: apt
     EOS
 
     access_content = <<-EOS.gsub(/^ {6}/, '')

@@ -5,9 +5,10 @@ class ServerSession
 
   def_delegators :ssh, :sudo!, :sudo_print!, :exec!
 
-  def initialize application, server, ec2_ssh_key_file
+  def initialize application, server, user_name, ec2_ssh_key_file
     @application = application
     @server = server
+    @user_name = user_name
     @ec2_ssh_key_file = ec2_ssh_key_file
   end
 
@@ -26,8 +27,8 @@ class ServerSession
 private
 
   def connect_to_ssh
-    $log.debug "Connecting via SSH to ec2-user@#{@server.public_ip}"
-    Net::SSH.start(@server.public_ip, 'ec2-user', :keys => [@ec2_ssh_key_file])
+    $log.debug "Connecting via SSH to #{@user_name}@#{@server.public_ip}"
+    Net::SSH.start(@server.public_ip, @user_name, :keys => [@ec2_ssh_key_file])
   end
 
 end

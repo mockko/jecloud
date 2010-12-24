@@ -173,7 +173,7 @@ class Application
     end
 
     @config.servers.each do |server|
-      server_session = ServerSession.new(self, server, @ec2_ssh_key_file)
+      server_session = ServerSession.new(self, server, @config.cloud.server_user_name, @ec2_ssh_key_file)
       catch :failed do
         session.action "#{server.uuid}-initial-setup", :unless => server.instance_id? do
           instance_type = @config.cloud.ec2_instance_type
@@ -223,9 +223,20 @@ class Application
         session.action "#{server.uuid}-install-jecloud", :unless => jecloud_installed do
           yum_packages = %w/gcc gcc-c++ openssl openssl-devel ruby-devel rubygems git/
 
-          $log.debug "Installing yum packages: #{yum_packages.join(' ')}"
-          server_session.sudo_print!("yum install -y #{yum_packages.join(' ')}")
-          $log.info "Installed yum packages: #{yum_packages.join(' ')}"
+          apt_packages = %w/build-essential ruby rubygems ruby1.8-dev libzlib-ruby libyaml-ruby libdrb-ruby liberb-ruby rdoc zlib1g-dev libopenssl-ruby upstart/  # TODO: revise this set
+
+          case @config.cloud.package_manager
+          when 'yum'
+            $log.debug "Installing yum packages: #{yum_packages.join(' ')}"
+            server_session.sudo_print!("yum install -y #{yum_packages.join(' ')}")
+            $log.info "Installed yum packages: #{yum_packages.join(' ')}"
+          when 'apt'
+            $log.debug "Installing apt packages: #{apt_packages.join(' ')}"
+            server_session.sudo_print!("apt-get install #{apt_packages.join(' ')}")
+            $log.info "Installed apt packages: #{apt_packages.join(' ')}"
+          else
+            throw "Unsupported package manager #{@config.cloud.package_manager}"
+          end
 
           $log.debug "Rebuilding JeCloud locally"
           puts `rake build`
