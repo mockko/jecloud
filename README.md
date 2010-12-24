@@ -67,6 +67,10 @@ Note that the only command that does actual changes to the cloud is `fwd`. Other
 
     Additionally, generates `cloud-access.yml.example` which should be committed to Git instead of `cloud-access.yml`, and adds `cloud-access.yml` to `.gitignore` (because you should never commit passwords and keys).
 
+* `jecloud status` (or simply `jecloud` — status is the default command)
+
+    Show the status of the cloud. Currently this displays the contents of the cloud state file, the list of Amazon EC2 instances and the list of servers managed by JeCloud.
+
 * `jecloud upload-git-ssh-key my_deployment_key`
 
     Saves the given SSH private key into the cloud state file. This key will be used to access the Git repository on deployment. You should generate a separate key specifically for this purpose (`ssh-keygen -t rsa`) and add it to GitHub as a deployment key for your repository.

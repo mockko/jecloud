@@ -48,25 +48,53 @@ class Application
   end
 
   def status!
-    if (@config.servers || []).empty?
-      puts "No servers active, the cloud is down."
-
-      ans = @ec2.describe_instances
-      if ans.reservationSet
-        puts "Please check that none of the following instances are lost:"
-        puts ans.reservationSet.item.collect { |i| i.instancesSet.item }.flatten.to_yaml
-      else
-        puts "No EC2 instances either."
-      end
-    else
-      @config.servers.each do |server|
-        puts "Server!"
-      end
-    end
     puts
-    puts "Current global config:"
+    puts "GLOBAL STATE ON S3:"
     puts
     puts @config.to_hash.to_yaml
+
+    ans = @ec2.describe_instances
+    if ans.reservationSet
+      format = '%-10s  %-13s  %-10s %-12s  %-12s  '
+      empty  = sprintf(format, "", "", "", "", "")
+
+      puts
+      puts
+      puts "AMAZON EC2 INSTANCES:"
+      puts
+      puts '=' * empty.size
+      puts sprintf(format, "Instance", "IP", "Type", "AMI", "State")
+      puts '-' * empty.size
+      ans.reservationSet.item.collect { |i| i.instancesSet.item }.flatten.each do |server|
+        puts sprintf(format, server.instanceId, server.ipAddress, server.instanceType, server.imageId, server.instanceState.andand.name || 'unknown')
+      end
+      puts '=' * empty.size
+    else
+      puts
+      puts "NO AMAZON EC2 INSTANCES"
+    end
+
+    if (@config.servers || []).empty?
+      puts
+      puts "NO SERVERS MANAGED BY JeCLOUD."
+    else
+      puts
+      puts
+      puts "SERVERS MANAGED BY JeCLOUD:"
+      puts
+
+      format = '%-10s  %-13s  '
+      empty  = sprintf(format, "", "")
+
+      puts '=' * empty.size
+      puts sprintf(format, "Instance", "IP")
+      puts '-' * empty.size
+      @config.servers.each do |server|
+        puts sprintf(format, server.instance_id, server.public_ip)
+      end
+      puts '=' * empty.size
+      puts
+    end
   end
 
   def apply! cloud_config_file

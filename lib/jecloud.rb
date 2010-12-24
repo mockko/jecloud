@@ -9,6 +9,7 @@ require 'aws/s3'            # aws-s3
 require 'net/ssh'           # net-ssh
 require 'net/sftp'          # net-sftp
 require 'hashie'            # hashie gem
+require 'andand'            # andand gem
 
 require 'jecloud/access_config'
 require 'jecloud/application'

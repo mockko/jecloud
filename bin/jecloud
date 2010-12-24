@@ -111,3 +111,5 @@ command :'upload-git-ssh-key' do |c|
     cli.upload_repository_ssh_key! key_file
   end
 end
+
+default_command :status
