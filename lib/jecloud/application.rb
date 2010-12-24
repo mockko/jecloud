@@ -218,6 +218,14 @@ class Application
     end
   end
 
+  def upload_repository_ssh_key! key_file
+    key = File.read(key_file)
+    raise "file #{key_file} does not contain a valid SSH private key" unless key =~ /BEGIN [RD]SA PRIVATE KEY/ && key =~ /END [RD]SA PRIVATE KEY/
+    update_config do
+      @config.repository_ssh_key = key
+    end
+  end
+
 private
 
   def add_server!

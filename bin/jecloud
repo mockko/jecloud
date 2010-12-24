@@ -45,3 +45,15 @@ command :terminate do |c|
     cli.terminate!
   end
 end
+
+command :'upload-git-ssh-key' do |c|
+  c.syntax = 'jecloud upload-git-ssh-key private_key_file'
+  c.description = 'Upload an SSH key that gives access to the source repository'
+  c.action do |args, options|
+    raise "upload-git-ssh-key accepts exactly one argument" if args.size != 1
+
+    key_file = args.first
+    raise "file #{key_file} does not exit" unless File.file?(key_file)
+    cli.upload_repository_ssh_key! key_file
+  end
+end

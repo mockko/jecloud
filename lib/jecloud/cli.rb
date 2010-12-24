@@ -18,6 +18,10 @@ class CLI
     application.roll_forward!
   end
 
+  def method_missing id, *args, &block
+    application.send(id, *args, &block)
+  end
+
 private
 
   def application

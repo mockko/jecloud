@@ -50,6 +50,15 @@ JeCloud concepts
 * Any requests are recorded inside the state file, and then *roll-forward* is used to update the physical servers. Thus the real state of the servers eventually becomes consistent with the demanded state. (Roll-forward means that the changes specified in the state file are eventually applied, and if the initial processing has failed or crashed, it will be retried later.)
 
 
+JeCloud command line
+--------------------
+
+* `jecloud upload-git-ssh-key my_deployment_key`
+
+    Saves the given SSH private key into the cloud state file. This key will be used to access the Git repository on deployment. You should generate a separate key specifically for this purpose (`ssh-keygen -t rsa`) and add it to GitHub as a deployment key for your repository.
+
+    (If you're using other private repositories as Git submodules, you will want to add the key to your GitHub account keys instead of your repository deployment keys.)
+
 
 
 Roadmap for 1.0
