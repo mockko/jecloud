@@ -90,6 +90,13 @@ Note that the only command that does actual changes to the cloud is `fwd`. Other
     This is the heart of the cloud management/monitoring solution. When a real hosted cloud monitor will be added to JeCloud stack, it will run `jecloud fwd` every minute from cron on the master monitoring node.
 
 
+Roadmap for 0.1 (i.e. what I'm working on right now)
+----------------------------------------------------
+
+* deploy a single environment on a single server, running a ‘Hello, world’ node.js app
+* full server setup workflow from the very start
+
+
 Roadmap for 1.0
 ---------------
 
@@ -112,15 +119,6 @@ Roadmap for 1.2
 
 * log rotation (so that logs don't eat up all the disk space)
 * predictable updates (if I tested with node 2.1, I don't want to get 2.2 automatically)
-
-
-Roadmap & status of 0.1 (i.e. what I'm working on right now)
-------------------------------------------------------------
-
-Goal:
-
-* deploy a single environment on a single server, running a ‘Hello, world’ node.js app
-* full server setup workflow from the very start
 
 
 Contributing to JeCloud
