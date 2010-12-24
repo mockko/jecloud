@@ -218,7 +218,6 @@ class Application
 
         session.action "#{server.uuid}-install-jecloud", :unless => jecloud_installed do
           yum_packages = %w/gcc gcc-c++ openssl openssl-devel ruby-devel rubygems git/
-
           apt_packages = %w/build-essential ruby rubygems ruby1.8-dev libzlib-ruby libyaml-ruby libdrb-ruby liberb-ruby rdoc zlib1g-dev libopenssl-ruby upstart/  # TODO: revise this set
 
           case @config.cloud.package_manager
