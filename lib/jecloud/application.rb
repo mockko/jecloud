@@ -55,7 +55,7 @@ class Application
 
     ans = @ec2.describe_instances
     if ans.reservationSet
-      format = '%-10s  %-13s  %-10s %-12s  %-12s  '
+      format = '%-10s  %-15s  %-10s %-12s  %-12s  '
       empty  = sprintf(format, "", "", "", "", "")
 
       puts
@@ -83,7 +83,7 @@ class Application
       puts "SERVERS MANAGED BY JeCLOUD:"
       puts
 
-      format = '%-10s  %-13s  '
+      format = '%-10s  %-15s  '
       empty  = sprintf(format, "", "")
 
       puts '=' * empty.size
