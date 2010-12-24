@@ -110,8 +110,6 @@ class Application
     die!("Invalid Git ref: #{git_ref}") if rev.size != 40
 
     $log.info "Deploying revision #{rev}"
-    server = @config.servers.first || add_server!
-    server.deployment = { 'version' => rev }
 
     roll_forward!
   end
@@ -257,11 +255,6 @@ class Application
             puts jecloud_version
             raise UnexpectedExternalProblem, "Installation of JeCloud failed on #{server.public_ip}"
           end
-        end
-
-        session.action "#{server.uuid}-start-deployment", :if => server.deployment? do
-          # pretend that it succeeded
-          server.deployment = nil
         end
       end
       server_session.close!
