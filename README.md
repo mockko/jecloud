@@ -18,13 +18,13 @@ My goal is to build something really simple that works for me — I need to get 
 Running JeCloud
 ---------------
 
-The following scenario should already works for you.
+The following scenario should work for you:
 
-* copy `example/keys.yml.example` into `example/keys.yml` and insert your AWS access keys
+* copy `example/cloud-access.yml.example` into `example/cloud-access.yml` and insert your AWS access keys
 * make sure you are signed up for both EC2 and S3 (go to http://aws.amazon.com/ and click ‘Sign in to the AWS Management Console’)
 * run `bundle install` to install all prerequisite gems
 * cd into `example`
-* run `ruby -rubygems ../bin/jecloud deploy -t` — you should see a new EC2 server instance created and set up (required yum packages installed, then JeCloud gem installed)
+* run `ruby -rubygems ../bin/jecloud apply cloud.yml` — you should see a new EC2 server instance created and set up (required yum packages installed, then JeCloud gem installed)
 
 Invoke `ruby -rubygems ../bin/jecloud --help` to see a list of all available commands.
 
@@ -43,15 +43,23 @@ JeCloud does **NOT** yet:
 JeCloud concepts
 ----------------
 
-* There is a global *cloud state* stored on Amazon S3. Currently it includes a list of servers in use (IP, EC2 instance ID for each server), a list of recently failed actions (for backing off) and the last deployment request.
+* There is a global *cloud state* stored on Amazon S3. Currently it includes a list of servers in use (IP, EC2 instance ID for each server), a list of recently failed actions (for backing off), the last deployment request, SSH keys for the cloud servers and for the source Git repository, and the cloud configuration uploaded from `cloud.yml`.
 
-    The global state is currently stored in S3 bucket named after the application. I.e., for an application called “example” the bucket is called `jecloud-example`. (This is surely a problem, since S3 buckets namespace is shared among all users. Will be changed in the future.)
+    The global state is currently stored in S3 bucket named after the application. I.e., for an application called “example” the bucket is called `jecloud-example` and the file is called `state.yml`. (This is surely a problem, since S3 buckets namespace is shared among all users. Will be changed in the future.)
 
-* Any requests are recorded inside the state file, and then *roll-forward* is used to update the physical servers. Thus the real state of the servers eventually becomes consistent with the demanded state. (Roll-forward means that the changes specified in the state file are eventually applied, and if the initial processing has failed or crashed, it will be retried later.)
+* *Cloud configuration file*, conventionally called `cloud.yml`, is where you define the deployment details of your application. (Currently it defines a EC2 instance type and EC2 ami for the server, but much more is coming.)
+
+    The master copy of this configuration is stored inside the global cloud state on S3, but you are expected to keep a local copy (probably committed to your source repository). This local file is only read by JeCloud when you pass it to `jecloud apply` command, which uploads the configuration to S3.
+
+* Any requests are recorded inside the state file, and then *roll-forward* (`jecloud fwd`) is used to update the physical servers. Thus the real state of the servers eventually becomes consistent with the demanded state. (Roll-forward means that the changes specified in the state file are eventually applied, and if the initial processing has failed or crashed, it will be retried later.)
 
 
 JeCloud command line
 --------------------
+
+All of the following commands (except `jecloud init`) expect to find the cloud access information in `cloud-access.yml` file in the current directory or one of its parents. You can explicitly specify a path to this file using `--access-file` option.
+
+Note that the only command that does actual changes to the cloud is `fwd`. Other commands like `apply` and `deploy` simply record the requested state in the cloud state file on S3 and then invoke `fwd` internally.
 
 * `jecloud init APPNAME`
 
@@ -65,6 +73,21 @@ JeCloud command line
 
     (If you're using other private repositories as Git submodules, you will want to add the key to your GitHub account keys instead of your repository deployment keys.)
 
+* `jecloud apply path/to/cloud.yml`
+
+    Upload the given cloud configuration file and apply it to the cloud. This will, if needed:
+
+    * create a EC2 key pair
+    * start a new server instance on EC2
+    * install JeCloud on the newly created instance
+
+    If the processing fails (crashes, times out, etc), you can retry/continue by running `jecloud fwd`.
+
+* `jecloud fwd`
+
+    Runs roll-forward processing, i.e. tries to apply the changes that have been requested but have not been applied yet.
+
+    This is the heart of the cloud management/monitoring solution. When a real hosted cloud monitor will be added to JeCloud stack, it will run `jecloud fwd` every minute from cron on the master monitoring node.
 
 
 Roadmap for 1.0

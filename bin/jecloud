@@ -10,6 +10,8 @@ program :description, 'Open cloud stack manager'
 
 cli = JeCloud::CLI.new
 
+global_option '-A', '--access-file /path/to/cloud-access.yml', 'Specify cloud-access.yml location (default is to check current dir and its parents)'
+
 command :init do |c|
   c.syntax = 'jecloud init <app_name>'
   c.description = 'Generate an initial version of cloud.yml and cloud-access.yml'
@@ -64,6 +66,16 @@ command :status do |c|
   end
 end
 
+command :apply do |c|
+  c.syntax = 'jecloud apply path/to/cloud.yml'
+  c.description = 'Upload & apply the given cloud configuration'
+  c.action do |args, options|
+    raise "apply accepts exactly one argument" if args.size != 1
+
+    cli.apply! args.first
+  end
+end
+
 command :fwd do |c|
   c.description = 'Roll forward any pending changes'
   c.action do |args, options|
@@ -74,7 +86,8 @@ end
 command :deploy do |c|
   c.description = 'Deploy a new version of the app to the cloud'
   c.action do |args, options|
-    cli.deploy! args
+    git_ref = args.first || 'HEAD'
+    cli.deploy! git_ref
   end
 end
 
@@ -87,7 +100,7 @@ command :terminate do |c|
 end
 
 command :'upload-git-ssh-key' do |c|
-  c.syntax = 'jecloud upload-git-ssh-key private_key_file'
+  c.syntax = 'jecloud upload-git-ssh-key <private_key_file>'
   c.description = 'Upload an SSH key that gives access to the source repository'
   c.action do |args, options|
     raise "upload-git-ssh-key accepts exactly one argument" if args.size != 1

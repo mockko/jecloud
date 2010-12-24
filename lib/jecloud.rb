@@ -10,6 +10,7 @@ require 'net/ssh'           # net-ssh
 require 'net/sftp'          # net-sftp
 require 'hashie'            # hashie gem
 
+require 'jecloud/access_config'
 require 'jecloud/application'
 require 'jecloud/cli'
 require 'jecloud/session'

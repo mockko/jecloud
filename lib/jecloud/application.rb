@@ -9,43 +9,16 @@ class Application
   class UnexpectedExternalProblem < Exception
   end
 
-  attr_reader :app_name
-  attr_reader :ec2_ssh_key_file
+  def initialize access_file
+    @access_config = AccessConfig.read(access_file)
 
-  def initialize config_dir
-    @config_dir = config_dir
+    @cache_dir = "/tmp/jecloud"
+    FileUtils.mkdir_p(@cache_dir)
 
-    @cloud_config = Hashie::Mash.new(YAML.load(File.read(File.join(@config_dir, 'cloud.yml'))))
-    @app_name = (@cloud_config.app_name || '').strip
-    die!("Required key missing in cloud.yml: app_name") if @app_name.empty?
-
-    @keys_config  = Hashie::Mash.new(YAML.load(File.read(File.join(@config_dir, 'keys.yml'))))
-
-    @deployment_key_priv = File.join(@config_dir, 'id_deployment')
-
-    File.read(@deployment_key_priv)
-
-    AWS::S3::Base.establish_connection!(
-      :access_key_id     => @keys_config['aws']['access_key_id'],
-      :secret_access_key => @keys_config['aws']['secret_access_key']
-    )
-
-    @ec2 = AWS::EC2::Base.new(
-      :access_key_id     => @keys_config['aws']['access_key_id'],
-      :secret_access_key => @keys_config['aws']['secret_access_key']
-    )
-
-    @config_bucket_name = "jecloud-#{app_name}"
-    begin
-      @config_bucket = AWS::S3::Bucket.find(@config_bucket_name)
-      $log.info "Using existing config bucket #{@config_bucket_name}"
-    rescue AWS::S3::NoSuchBucket
-      @config_bucket = AWS::S3::Bucket.create(@config_bucket_name)
-      $log.warn "Created new config bucket #{@config_bucket_name}"
-    end
+    @ecs = @access_config.establish_connection!
 
     @ec2_ssh_key_name = "id_#{app_name}"
-    @ec2_ssh_key_file = File.join(@config_dir, "id_#{app_name}")
+    @ec2_ssh_key_file = File.join(@cache_dir, @ec2_ssh_key_name)
 
     @config = read_config
   rescue Errno::ENOENT => e
@@ -53,19 +26,25 @@ class Application
     exit 1
   end
 
-  def make_key!
-    unless File.file? @ec2_ssh_key_file
-      log 'delete_keypair', @ec2_ssh_key_name
-      @ec2.delete_keypair(:key_name => @ec2_ssh_key_name)
+  def app_name; @access_config.app_name; end
 
-      log 'create_keypair', @ec2_ssh_key_name
-      result = @ec2.create_keypair(:key_name => @ec2_ssh_key_name)
-      puts "Fingerprint: #{result.keyFingerprint}"
+  def config_bucket_name
+    @config_bucket_name ||= "jecloud-#{app_name}"
+  end
 
-      File.open(@ec2_ssh_key_file, 'w') { |f| f.write result.keyMaterial }
-      File.chmod(0600, @ec2_ssh_key_file)
-      log 'saved', @ec2_ssh_key_file
+  def config_bucket
+    @config_bucket ||= find_or_create_config_bucket
+  end
+
+  def find_or_create_config_bucket
+    begin
+      bucket = AWS::S3::Bucket.find(config_bucket_name)
+      $log.info "Using existing config bucket #{config_bucket_name}"
+    rescue AWS::S3::NoSuchBucket
+      bucket = AWS::S3::Bucket.create(config_bucket_name)
+      $log.warn "Created new config bucket #{config_bucket_name}"
     end
+    return bucket
   end
 
   def status!
@@ -88,6 +67,14 @@ class Application
     puts "Current global config:"
     puts
     puts @config.to_hash.to_yaml
+  end
+
+  def apply! cloud_config_file
+    update_config do
+      @config.cloud = YAML.load(File.read(cloud_config_file))
+    end
+    add_server! if @config.servers.empty?
+    roll_forward!
   end
 
   def deploy! git_ref
@@ -128,14 +115,31 @@ class Application
 
   def roll_forward_step! session
     $log.debug "Roll forward running"
+
+    session.action "create-ssh-key-pair", :unless => @config.ec2_ssh_key? do
+      raise "unexpected!"
+      $log.debug "Deleting key pair @ec2_ssh_key_name"
+      @ec2.delete_keypair(:key_name => @ec2_ssh_key_name)
+
+      $log.debug "Creating key pair @ec2_ssh_key_name"
+      result = @ec2.create_keypair(:key_name => @ec2_ssh_key_name)
+
+      @config.ec2_ssh_key = result.keyMaterial
+    end
+
+    unless File.file?(@ec2_ssh_key_file)
+      File.open(@ec2_ssh_key_file, 'w') { |f| f.write @config.ec2_ssh_key }
+      File.chmod(0600, @ec2_ssh_key_file)
+    end
+
     @config.servers.each do |server|
-      server_session = ServerSession.new(self, server)
+      server_session = ServerSession.new(self, server, @ec2_ssh_key_file)
       catch :failed do
         session.action "#{server.uuid}-initial-setup", :unless => server.instance_id? do
-          instance_type = @cloud_config.ec2_instance_type
+          instance_type = @config.cloud.ec2_instance_type
           die!("ec2_instance_type not specified") if instance_type.nil?
 
-          ami = @cloud_config.ec2_ami
+          ami = @config.cloud.ec2_ami
           die!("ec2_ami not specified") if ami.nil?
 
           make_key!
@@ -238,7 +242,7 @@ private
 
   def read_config
     begin
-      Hashie::Mash.new(YAML.load(AWS::S3::S3Object.value('state.json', @config_bucket_name)))
+      Hashie::Mash.new(YAML.load(AWS::S3::S3Object.value('state.json', config_bucket.name)))
     rescue AWS::S3::NoSuchKey
       Hashie::Mash.new
     end.tap do |config|
@@ -252,7 +256,7 @@ private
 
   def update_config
     result = yield
-    AWS::S3::S3Object.store 'state.json', YAML.dump(@config.to_hash), @config_bucket_name
+    AWS::S3::S3Object.store 'state.json', YAML.dump(@config.to_hash), config_bucket.name
     puts @config.to_hash.to_yaml
     return result
   end
