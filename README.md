@@ -89,6 +89,10 @@ Note that the only command that does actual changes to the cloud is `fwd`. Other
 
     This is the heart of the cloud management/monitoring solution. When a real hosted cloud monitor will be added to JeCloud stack, it will run `jecloud fwd` every minute from cron on the master monitoring node.
 
+* `jecloud terminate`
+
+    Terminates all the servers in your EC2 account (after asking for confirmation). Use this after you've done playing with JeCloud, or to start afresh. Needs to be fixed soon to only terminate the servers managed by JeCloud.
+
 
 Roadmap for 0.1 (i.e. what I'm working on right now)
 ----------------------------------------------------

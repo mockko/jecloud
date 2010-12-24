@@ -94,7 +94,8 @@ end
 command :terminate do |c|
   c.description = 'Terminate all the servers of your cloud'
   c.action do |args, options|
-    exit 1 unless agree("Are you sure you want to PERMANENTLY destroy all running servers?")
+    cli.status!
+    exit 1 unless agree("Are you sure you want to PERMANENTLY destroy all running servers? ")
     cli.terminate!
   end
 end

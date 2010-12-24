@@ -88,6 +88,18 @@ class Application
     roll_forward!
   end
 
+  def terminate!
+    instances = @ec2.describe_instances.reservationSet.item.collect { |i| i.instancesSet.item }.flatten
+
+    instances.each do |instance|
+      ip, instance_id = instance['ipAddress'], instance['instanceId']
+
+      $log.debug "Terminating instance #{instance_id} (#{ip})..."
+      @ec2.terminate_instances :instance_id => [instance_id]
+      $log.info "Terminated instance #{instance_id} (#{ip})"
+    end
+  end
+
   def roll_forward!
     1.times do
       cont = true
