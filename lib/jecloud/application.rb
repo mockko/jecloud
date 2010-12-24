@@ -15,7 +15,7 @@ class Application
     @cache_dir = "/tmp/jecloud"
     FileUtils.mkdir_p(@cache_dir)
 
-    @ecs = @access_config.establish_connection!
+    @ec2 = @access_config.establish_connection!
 
     @ec2_ssh_key_name = "id_#{app_name}"
     @ec2_ssh_key_file = File.join(@cache_dir, @ec2_ssh_key_name)
