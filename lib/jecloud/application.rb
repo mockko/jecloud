@@ -283,7 +283,7 @@ private
 
   def add_server!
     update_config do
-      server = { 'status' => 'creating', 'instance_id' => nil }
+      server = { 'uuid' => `uuidgen`.strip, 'instance_id' => nil }
       @config.servers << server
       server
     end
