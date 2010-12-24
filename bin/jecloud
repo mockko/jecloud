@@ -10,6 +10,46 @@ program :description, 'Open cloud stack manager'
 
 cli = JeCloud::CLI.new
 
+command :init do |c|
+  c.syntax = 'jecloud init <app_name>'
+  c.description = 'Generate an initial version of cloud.yml and cloud-access.yml'
+  c.action do |args, options|
+    raise "init needs exactly one argument (the app name)" if args.size != 1
+    app_name = args.first
+
+    unless app_name =~ /^[a-z0-9-]+$/
+      raise "app name has to consist only of lowercase letters, numbers and dashes"
+    end
+
+    dir = Dir.pwd
+    cloud_yml     = File.join(dir, 'cloud.yml')
+    access_yml    = File.join(dir, 'cloud-access.yml')
+    access_yml_ex = File.join(dir, 'cloud-access.yml.example')
+    git_ignore    = File.join(dir, '.gitignore')
+
+    cloud_content = <<-EOS.gsub(/^ {6}/, '')
+      # JeCloud configuration file for #{app_name}
+      ec2_instance_type: t1.micro
+      ec2_ami: ami-08728661  # Basic 32-bit Amazon Linux AMI 1.0
+    EOS
+
+    access_content = <<-EOS.gsub(/^ {6}/, '')
+      app_name: #{app_name}
+      aws:
+        access_key_id: TODO
+        secret_access_key: TODO
+    EOS
+    access_ex_comment = '# please copy this into cloud-access.yml and fill in the keys'
+
+    git_ignore_content = (File.read(git_ignore) rescue '')
+
+    File.open(cloud_yml, 'w')     { |f| f.write cloud_content }                            unless File.file?(cloud_yml)
+    File.open(access_yml, 'w')    { |f| f.write access_content }                           unless File.file?(access_yml)
+    File.open(access_yml_ex, 'w') { |f| f.puts access_ex_comment; f.write access_content } unless File.file?(access_yml_ex)
+    File.open(git_ignore, 'w')    { |f| f.puts git_ignore_content.rstrip; f.puts File.basename(access_yml) } unless git_ignore_content =~ /^#{File.basename(access_yml)}$/
+  end
+end
+
 command :'print-version' do |c|
   c.description = 'Print the version of JeCloud in a machine-readable format'
   c.action do |args, options|

@@ -1,0 +1,5 @@
+# please copy this into cloud-access.yml and fill in the keys
+app_name: example
+aws:
+  access_key_id: TODO
+  secret_access_key: TODO

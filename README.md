@@ -53,6 +53,12 @@ JeCloud concepts
 JeCloud command line
 --------------------
 
+* `jecloud init APPNAME`
+
+    Generate initial versions of `cloud.yml` and `cloud-access.yml` to get you started.
+
+    Additionally, generates `cloud-access.yml.example` which should be committed to Git instead of `cloud-access.yml`, and adds `cloud-access.yml` to `.gitignore` (because you should never commit passwords and keys).
+
 * `jecloud upload-git-ssh-key my_deployment_key`
 
     Saves the given SSH private key into the cloud state file. This key will be used to access the Git repository on deployment. You should generate a separate key specifically for this purpose (`ssh-keygen -t rsa`) and add it to GitHub as a deployment key for your repository.
