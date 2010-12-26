@@ -99,6 +99,12 @@ Note that the only command that does actual changes to the cloud is `fwd`. Other
     Terminates all the servers in your EC2 account (after asking for confirmation). Use this after you've done playing with JeCloud, or to start afresh. Needs to be fixed soon to only terminate the servers managed by JeCloud.
 
 
+Known issues
+------------
+
+When connecting via SSH to a recently launched instance, the connection sometimes hangs, and no sensible timeout seems to exist. (And yes, I've tried passing `:timeout` to Net::SSH.) You need to manually press Ctrl-C to continue processing.
+
+
 Roadmap for 0.1 (i.e. what I'm working on right now)
 ----------------------------------------------------
 

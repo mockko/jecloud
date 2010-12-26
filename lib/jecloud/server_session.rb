@@ -1,6 +1,8 @@
 module JeCloud
 class ServerSession
 
+  SSH_CONNECTION_TIMEOUT = 5
+
   extend Forwardable
 
   def_delegators :ssh, :sudo!, :sudo_print!, :exec!
@@ -28,7 +30,7 @@ private
 
   def connect_to_ssh
     $log.debug "Connecting via SSH to #{@user_name}@#{@server.public_ip}"
-    Net::SSH.start(@server.public_ip, @user_name, :keys => [@ec2_ssh_key_file])
+    Net::SSH.start(@server.public_ip, @user_name, :keys => [@ec2_ssh_key_file], :timeout => SSH_CONNECTION_TIMEOUT)
   end
 
 end

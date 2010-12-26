@@ -15,6 +15,10 @@ class Session
     @any_actions_executed
   end
 
+  def changed!
+    @any_actions_executed = true
+  end
+
   def action name, options={}, &block
     raise "action must have :if or :unless condition specified" unless options.include?(:if) || options.include?(:unless)
 
@@ -55,7 +59,11 @@ private
         result = yield
         $log.info "Succeeded: #{name}"
       rescue Exception => e
-        message = "#{e.class.name}: #{e.message}"
+        if e.is_a? Application::ExpectedDelay
+          message = "Expected delay: #{e.message}"
+        else
+          message = "#{e.class.name}: #{e.message}"
+        end
         failure.first ||= now
         failure.last = now
         failure['count'] = (failure['count'] || 0) + 1
@@ -67,7 +75,7 @@ private
         @next_attempt = [@next_attempt || next_attempt, next_attempt].min
 
         $log.error "Action #{name} failed with #{message}, will retry in #{failure.delay} seconds"
-        $stderr.puts e.backtrace
+        $stderr.puts e.backtrace unless e.is_a? Application::ExpectedDelay
         throw :failed
       end
     end

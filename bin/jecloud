@@ -35,6 +35,7 @@ command :init do |c|
       ec2_ami: ami-508c7839  # Ubuntu 10.10 Maverick EBS boot
       server_user_name: ubuntu
       package_manager: apt
+      server_count: 1
     EOS
 
     access_content = <<-EOS.gsub(/^ {6}/, '')
